@@ -114,6 +114,11 @@ The bot includes admin-only commands accessible via Telegram:
 - [ ] Sponsor spots on website
 - [ ] Full open source verification tooling
 
+## Known Issues
+- npm audit reports vulnerabilities in node-telegram-bot-api's 
+  deprecated `request` dependency. These have no available fix 
+  upstream. A future version will migrate to a maintained library.
+
 ## License
 
 GPL v3 — see LICENSE file.
@@ -125,8 +130,3 @@ GPL v3 — see LICENSE file.
 ---
 
 *Stack sats. Trust the cards. Have fun.* ⚡
-
-## Known Issues
-- npm audit reports vulnerabilities in node-telegram-bot-api's 
-  deprecated `request` dependency. These have no available fix 
-  upstream. A future version will migrate to a maintained library.
