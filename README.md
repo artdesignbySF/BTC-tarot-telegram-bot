@@ -5,6 +5,7 @@ A Lightning-native Bitcoin tarot bot for Telegram. Pay 21 sats, draw 3 cards, re
 > **Status: Work in progress — actively under development**
 
 ## Contents
+- [Add to Your Telegram Group](#add-to-your-telegram-group)
 - [What It Does](#what-it-does)
 - [How It Works](#how-it-works)
 - [Prize Pool](#prize-pool)
@@ -18,6 +19,19 @@ A Lightning-native Bitcoin tarot bot for Telegram. Pay 21 sats, draw 3 cards, re
 - [Known Issues](#known-issues)
 - [License](#license)
 - [Try It](#try-it)
+
+## Add to Your Telegram Group
+
+Want Madame Satoshi in your Telegram group?
+
+1. Open your Telegram group
+2. Tap the group name to open group info
+3. Tap **Add members**
+4. Search for `@BitcoinTarotBot`
+5. Select it and confirm
+
+Note: Each user manages their own balance individually.
+Deposits and withdrawals are handled in private chat with the bot.
 
 ## What It Does
 
