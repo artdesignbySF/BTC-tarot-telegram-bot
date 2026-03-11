@@ -17,6 +17,7 @@ A Lightning-native Bitcoin tarot bot for Telegram. Pay 21 sats, draw 3 cards, re
 - [Roadmap](#roadmap)
 - [Known Issues](#known-issues)
 - [License](#license)
+- [Try It](#try-it)
 
 ## What It Does
 
