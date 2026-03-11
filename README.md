@@ -4,6 +4,20 @@ A Lightning-native Bitcoin tarot bot for Telegram. Pay 21 sats, draw 3 cards, re
 
 > **Status: Work in progress — actively under development**
 
+## Contents
+- [What It Does](#what-it-does)
+- [How It Works](#how-it-works)
+- [Prize Pool](#prize-pool)
+- [Provably Fair](#provably-fair)
+- [Tech Stack](#tech-stack)
+- [Self-Sovereign Stack](#self-sovereign-stack)
+- [Setup](#setup)
+- [Environment Variables](#environment-variables)
+- [Admin Commands](#admin-commands)
+- [Roadmap](#roadmap)
+- [Known Issues](#known-issues)
+- [License](#license)
+
 ## What It Does
 
 Madame Satoshi's Bitcoin Oracle is a Telegram bot that combines tarot card reading with a Bitcoin Lightning prize pool. Each draw costs 21 sats, deducted from your in-bot balance. Three cards are drawn from the 22 Major Arcana and interpreted as Past, Present, and Future — with a Bitcoin-themed fortune reading.
