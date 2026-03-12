@@ -71,6 +71,9 @@ Users can run `/verify` in the bot to retrieve:
 - The seed used for their draw
 - Cards drawn and timestamp
 - Direct link to the block on mempool.space
+- A ready-to-run terminal command to reproduce the draw locally
+
+The code is open source under GPL v3 — anyone can verify any draw independently using the provided seed and block hash.
 
 ## Tech Stack
 
@@ -127,7 +130,7 @@ The bot includes admin-only commands accessible via Telegram:
 - [ ] Nostr integration with zap support
 - [ ] Wallet Connect / NWC
 - [ ] Sponsor spots on website
-- [ ] Full open source verification tooling
+- [x] Full open source verification tooling
 
 ## Known Issues
 - npm audit reports vulnerabilities in node-telegram-bot-api's 
