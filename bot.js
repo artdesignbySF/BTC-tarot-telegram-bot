@@ -500,57 +500,49 @@ async function performDraw(chatId, userId) {
     await bot.sendMessage(chatId, "🎴 Drawing cards...");
 
     if (!hasReceivedBonus(userId)) {
-    // First play bonus - fixed cards for predictability
-    const won = PAYMENT_AMOUNT_SATS;
+    // First play: real random draw with 11 sat bonus
+    const fpBlockHash = await getLatestBlockHash();
+    const fpTimestamp = Date.now();
+    const fpSeed = generateBlockSeed(fpBlockHash, userId, fpTimestamp);
+    const fpCards = drawCards(fpSeed);
     updateJackpot(JACKPOT_CONTRIBUTION);
-    updateJackpot(-won);
-    const newBalance = updateUserBalance(userId, won);
+    const FIRST_PLAY_BONUS = parseInt(process.env.FIRST_PLAY_BONUS_SATS || '11');
+    updateJackpot(-FIRST_PLAY_BONUS);
+    const fpNewBalance = updateUserBalance(userId, FIRST_PLAY_BONUS);
     markBonusReceived(userId);
 
-    // Store verification data for bonus draw
-    const bonusBlockHash = await getLatestBlockHash();
-    const bonusTimestamp = Date.now();
-    const db = loadDb();
-    db[`draw_verify_${userId}`] = {
+    const fpDb = loadDb();
+    fpDb[`draw_verify_${userId}`] = {
       blockHeight: cachedBlockInfo.height,
-      blockHash: bonusBlockHash,
-      cards: ["XXI", "X", "XI"],
-      timestamp: bonusTimestamp
+      blockHash: fpBlockHash,
+      cards: fpCards.map(c => c.number),
+      timestamp: fpTimestamp
     };
-
-    // Update stats for bonus draw
-    if (!db.stats) {
-      db.stats = { totalDraws: 0, dailyDraws: 0, lastDrawDate: new Date().toISOString().split('T')[0], totalUsers: {}, winsByTier: { jackpot: 0, major: 0, minor: 0, none: 0 } };
+    if (!fpDb.stats) {
+      fpDb.stats = { totalDraws: 0, dailyDraws: 0, lastDrawDate: new Date().toISOString().split('T')[0], totalUsers: {}, winsByTier: { jackpot: 0, major: 0, minor: 0, none: 0 } };
     }
-    db.stats.totalDraws = (db.stats.totalDraws || 0) + 1;
-    const today = new Date().toISOString().split('T')[0];
-    if (db.stats.lastDrawDate !== today) {
-      db.stats.dailyDraws = 1;
-      db.stats.lastDrawDate = today;
+    fpDb.stats.totalDraws = (fpDb.stats.totalDraws || 0) + 1;
+    const fpToday = new Date().toISOString().split('T')[0];
+    if (fpDb.stats.lastDrawDate !== fpToday) {
+      fpDb.stats.dailyDraws = 1;
+      fpDb.stats.lastDrawDate = fpToday;
     } else {
-      db.stats.dailyDraws = (db.stats.dailyDraws || 0) + 1;
+      fpDb.stats.dailyDraws = (fpDb.stats.dailyDraws || 0) + 1;
     }
-    if (!db.stats.totalUsers) db.stats.totalUsers = {};
-    db.stats.totalUsers[userId] = true;
-    db.stats.winsByTier["none"] = (db.stats.winsByTier["none"] || 0) + 1;
+    if (!fpDb.stats.totalUsers) fpDb.stats.totalUsers = {};
+    fpDb.stats.totalUsers[userId] = true;
+    fpDb.stats.winsByTier['none'] = (fpDb.stats.winsByTier['none'] || 0) + 1;
+    if (!fpDb.drawLogs) fpDb.drawLogs = [];
+    fpDb.drawLogs.push({ userId, cards: fpCards.map(c => c.number), winTier: 'none', timestamp: fpTimestamp });
+    if (fpDb.drawLogs.length > 10) fpDb.drawLogs = fpDb.drawLogs.slice(-10);
+    saveDb(fpDb);
 
-    // Append bonus draw to logs (keep last 10)
-    if (!db.drawLogs) db.drawLogs = [];
-    db.drawLogs.push({
-      userId: userId,
-      cards: ["XXI", "X", "XI"],
-      winTier: "none",
-      timestamp: bonusTimestamp
-    });
-    if (db.drawLogs.length > 10) db.drawLogs = db.drawLogs.slice(-10);
-
-    saveDb(db);
-
-    const firstCaption =
-      `🎴 *Madame Satoshi draws...*\n\n*BEGINNER'S BONUS*\n\n*XXI Ace of Pentacles* · *X Wheel of Fortune* · *XI Justice*\n\n` +
-      `🔮 _Beginner's luck! Madame Satoshi returns your ${won} sat stake!_\n\n` +
-      `💰 *Won: ${won} sats!*\n👛 Balance: ${newBalance} sats\n🎰 Jackpot: ${getJackpot()} sats`;
-    await sendDrawResult(chatId, userId, ["XXI", "X", "XI"], firstCaption);
+    const fpCardLine = fpCards.map(c => `*${c.name}*`).join(' · ');
+    const { fortune: fpFortune } = calculateFortune(fpCards, getJackpot(), MIN_JACKPOT_SEED, true);
+    const fpCaption =
+      `🎴 *Madame Satoshi draws...*\n\n${fpCardLine}\n\n🔮 _${fpFortune}_\n\n` +
+      `💰 *Bonus: ${FIRST_PLAY_BONUS} sats!*\n👛 Balance: ${fpNewBalance} sats\n🎰 Jackpot: ${getJackpot()} sats`;
+    await sendDrawResult(chatId, userId, fpCards.map(c => c.number), fpCaption);
     return;
   }
 
@@ -814,7 +806,19 @@ bot.onText(/\/verify/, async (msg) => {
     `🎯 Seed: \`${seed}\`\n` +
     `🎴 Cards: ${draw.cards.join(' → ')}\n` +
     `⏰ Timestamp: ${new Date(draw.timestamp).toLocaleString()}\n\n` +
-    `[Verify on mempool.space](https://mempool.space/block/${draw.blockHash})`;
+    `[Verify on mempool.space](https://mempool.space/block/${draw.blockHash})\n\n` +
+    `🔍 *Verify this draw yourself:*\n` +
+    `1. Check the block hash at mempool.space (link above)\n` +
+    `2. Run this in your terminal:\n\n` +
+    `\`\`\`\n` +
+    `node -e "\n` +
+    `const crypto = require('crypto');\n` +
+    `const seed = crypto.createHash('sha256')\n` +
+    `.update('${draw.blockHash}' + '${userId}' + '${draw.timestamp}')\n` +
+    `.digest('hex');\n` +
+    `console.log('Seed:', parseInt(seed.substring(0,8), 16));\n` +
+    `"\n` +
+    `\`\`\``;
 
   bot.sendMessage(chatId, verifyMessage, { parse_mode: 'Markdown', reply_markup: mainKeyboard(userId) });
 });
@@ -823,7 +827,7 @@ bot.onText(/\/verify/, async (msg) => {
 bot.onText(/\/msstats/, async (msg) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
 
   const db = loadDb();
   const stats = db.stats || { totalDraws: 0, dailyDraws: 0, totalUsers: {}, winsByTier: { jackpot: 0, major: 0, minor: 0, none: 0 } };
@@ -847,7 +851,7 @@ bot.onText(/\/msstats/, async (msg) => {
 bot.onText(/\/msuser\s+(\d+)/, async (msg, match) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
 
   const targetUserId = parseInt(match[1]);
   const balance = getUserBalance(targetUserId);
@@ -869,14 +873,14 @@ bot.onText(/\/msuser\s+(\d+)/, async (msg, match) => {
 bot.onText(/\/msuser$/, async (msg) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
   bot.sendMessage(chatId, "Usage: /msuser <userId>");
 });
 
 bot.onText(/\/mslogs/, async (msg) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
 
   const db = loadDb();
   const drawLogs = db.drawLogs || [];
@@ -897,7 +901,7 @@ bot.onText(/\/mslogs/, async (msg) => {
 bot.onText(/\/msbroadcast\s+(.+)/, async (msg, match) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
 
   const message = match[1];
   const db = loadDb();
@@ -931,7 +935,7 @@ bot.onText(/\/msbroadcast\s+(.+)/, async (msg, match) => {
 bot.onText(/\/msdrain\s+(\d+)/, async (msg, match) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
 
   const amount = parseInt(match[1]);
   if (isNaN(amount) || amount <= 0) return bot.sendMessage(chatId, "❌ Invalid amount.");
@@ -950,7 +954,7 @@ bot.onText(/\/msdrain\s+(\d+)/, async (msg, match) => {
 bot.onText(/\/msblock/, async (msg) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
 
   const blockMessage = `*Latest Block Info*\n\n` +
     `🔗 Block Height: ${cachedBlockInfo.height || 'Unknown'}\n` +
@@ -963,7 +967,7 @@ bot.onText(/\/msblock/, async (msg) => {
 bot.onText(/\/mshelp/, async (msg) => {
   const userId = msg.from.id;
   const chatId = msg.chat.id;
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
 
   const helpMessage = `*🔧 Admin Commands:*\n\n` +
     `/msstats — Full dashboard (draws, users, wallets, block status)\n` +
@@ -1019,16 +1023,16 @@ bot.on("callback_query", async (q) => {
       `🏆 JACKPOT: Sun + World + Magician (any order) → 100% of pool (6 in 9,240)\n` +
       `🥇 Major Win → ~35% of pool (66 in 9,240)\n` +
       `🥈 Minor Win → ~15% of pool (666 in 9,240)\n\n` +
-      `*🔍 Provably Fair (coming soon)*\n` +
+      `*🔍 Provably Fair*\n` +
       `Draws are seeded by Bitcoin block hashes.\n` +
       `Use /verify to see your last draw's verification data.\n` +
-      `Full verification will be possible once the code is open sourced.\n\n` +
+      `Full verification is possible, check our FOSS GPL v3 [Github Project](https://github.com/artdesignbySF/BTC-tarot-telegram-bot)\n\n` +
       `Use the buttons below to draw, deposit, withdraw, and check your balance.\n\n` +
       `Type /madame to open the oracle.\n\n` +
       `_Stack sats. Trust the cards. Have fun._`,
-      { parse_mode: "Markdown" });
+      { parse_mode: "Markdown", disable_web_page_preview: true });
   } else if (d.startsWith("confirm_drain_")) {
-    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
     const amount = parseInt(d.split("_")[2]);
     if (isNaN(amount)) return bot.sendMessage(chatId, "❌ Invalid drain amount.");
 
@@ -1059,7 +1063,7 @@ bot.on("callback_query", async (q) => {
       bot.sendMessage(chatId, `❌ Drain failed: ${error.message}`);
     }
   } else if (d === "cancel_drain") {
-    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied.");
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, "❌ Access denied. Admins only!");
     bot.sendMessage(chatId, "❌ Drain cancelled.");
   }
 });
